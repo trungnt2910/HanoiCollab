@@ -1,9 +1,12 @@
 // ==UserScript==
 // @name         HanoiStudy Collab
-// @namespace    http://tampermonkey.net/
+// @namespace    https://trungnt2910.github.io/
 // @version      0.0.1
 // @description  HanoiCollab Client for HanoiStudy
 // @author       trungnt2910
+// @license      MIT
+// @downloadURL  https://raw.githubusercontent.com/trungnt2910/HanoiCollab/master/Clients/HanoiStudy.user.js
+// @updateURL    https://raw.githubusercontent.com/trungnt2910/HanoiCollab/master/Clients/HanoiStudy.meta.js
 // @match        https://study.hanoi.edu.vn/lam-bai/*
 // @icon         https://www.google.com/s2/favicons?domain=edu.vn
 // @grant        GM_xmlhttpRequest
