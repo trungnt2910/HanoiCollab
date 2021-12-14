@@ -91,17 +91,22 @@ namespace HanoiCollab.Controllers
                             Console.WriteLine($"Adding new question with hash: {q.Hash}");
                             foreach (var a in q.Answers)
                             {
-                                questionInfo.Add(a.Hash, new HashSet<User>());
+                                // Read the comment about clashing answers below.
+                                questionInfo.TryAdd(a.Hash, new HashSet<User>());
                             }
 
                             _questions.Add(q.Hash, questionInfo);
                         }
                         else
                         {
-                            if (q.Answers.Count != questionInfo.Count)
-                            {
-                                return BadRequest("Malformed submission");
-                            }
+                            // There might be clashing answers, we don't wanna fail the whole server
+                            // for this.
+                            //if (q.Answers.Count != questionInfo.Count)
+                            //{
+                            //    return BadRequest("Malformed submission");
+                            //}
+                            // However, we're still checking for the integrity of the submission.
+                            // If the submission contains a _different_ answer, we fail the request.
                             foreach (var a in q.Answers)
                             {
                                 if (!questionInfo.ContainsKey(a.Hash))
@@ -129,7 +134,8 @@ namespace HanoiCollab.Controllers
                                     , DisplayNamesPerAnswer));
                         }
 
-                        toReturn.Answers.Add(q.Hash, toReturnDict);
+                        // For some reasons, there are questions with the same hash. Allow them too.
+                        toReturn.Answers.TryAdd(q.Hash, toReturnDict);
                     }
                 }
 
