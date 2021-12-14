@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         HanoiStudy Collab
 // @namespace    https://trungnt2910.github.io/
-// @version      0.0.1
+// @version      0.0.2
 // @description  HanoiCollab Client for HanoiStudy
 // @author       trungnt2910
 // @license      MIT
