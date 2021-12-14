@@ -85,12 +85,14 @@
         {
             var qbt = qb.getElementsByClassName("question-box-title")[0];
             var question = getRealText(qbt).trim();
+            var questionAndAnswers = question;
             var choices = [];
             var userAnswer = null;
             for (var ansbox of Array.from(qb.getElementsByClassName("splip-answer")).sort(
                 (a, b) => a.getElementsByTagName("label")[0].htmlFor.localeCompare(b.getElementsByTagName("label")[0].htmlFor)))
             {
                 var answer = getRealText(ansbox.getElementsByClassName("text-ans")[0]).trim();
+                questionAndAnswers += "\n" + answer;
                 bigFatString += answer.getHashCode();
                 choices.push({text: answer, hash: answer.getHashCode()});
                 if (ansbox.getElementsByTagName("input")[0].checked)
@@ -107,7 +109,7 @@
             questions.push(
                 {
                     text: question,
-                    hash: question.getHashCode(),
+                    hash: questionAndAnswers.getHashCode(),
                     answers: choices,
                     userAnswer: userAnswer
                 }
