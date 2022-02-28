@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azota Collab
 // @namespace    https://trungnt2910.github.io/
-// @version      0.0.2
+// @version      0.0.3
 // @description  HanoiCollab Client for Azota
 // @author       trungnt2910
 // @license      MIT
@@ -176,9 +176,14 @@
             {
                 var id = setInterval(function()
                 {
-                    HanoiCollabExposedVariables.forEach(function(obj) 
+                    // We want to find the latest valid variable.
+                    // We cannot clear the whole list on reload, some actions may or may not create
+                    // new test objects.
+                    HanoiCollabExposedVariables.reverse().forEach(function(obj) 
                     {
-                        if (obj.questionList)
+                        // Azota creates one full object and one reduced object.
+                        // We want to get the full one.
+                        if (obj.questionList && obj.saveToStorage)
                         {
                             clearInterval(id);
                             resolve(obj);
@@ -280,6 +285,11 @@
                         if (answerIndex != -1)
                         {
                             answer = testInfo.answerList[answerIndex].answerContent ? testInfo.answerList[answerIndex].answerContent[0].content : ""; 
+                        }
+                        if (answer.length > 10000)
+                        {
+                            // Put a 10000 character cap, preventing malicious DDOS attacks.
+                            answer = answer.substring(0, 10000) + "\nAnswer truncated.";
                         }
                         writtenQuestions.push(
                             {
