@@ -5,7 +5,10 @@ namespace HanoiCollab.Data
     public class ExamAnswers
     {
         [JsonProperty("answers")]
-        public Dictionary<string, Dictionary<string, PartialSet<User>>>? Answers { get; set; }
+        public Dictionary<string, Dictionary<string, PartialSet<User>>> Answers { get; set; }
+
+        [JsonProperty("writtenAnswers")]
+        public Dictionary<string, List<WrittenAnswerPreview>> WrittenAnswers { get; set; }
 
         public ExamAnswers()
         {

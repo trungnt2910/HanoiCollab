@@ -12,12 +12,16 @@ namespace HanoiCollab.Controllers
         const int DisplayNamesPerAnswer = 10;
 
         private static readonly Dictionary<string, Dictionary<string, HashSet<User>>> _questions = new();
+
+        // We must use the ID as the key, else we cannot query by ID in the future.
+        private static readonly Dictionary<string, Dictionary<string, (User User, string Answer)>> _writtenQuestions = new();
+
         private static readonly object _locker = new();
 
         [HttpGet]
         public IActionResult Get(string questionHash)
         {
-            Dictionary<string, HashSet<User>>? question;
+            Dictionary<string, HashSet<User>> question;
 
             lock (_locker)
             {
@@ -80,7 +84,7 @@ namespace HanoiCollab.Controllers
 
                 foreach (var q in submission.Questions)
                 {
-                    Dictionary<string, HashSet<User>>? questionInfo;
+                    Dictionary<string, HashSet<User>> questionInfo;
 
                     lock (_questions)
                     {
@@ -139,12 +143,75 @@ namespace HanoiCollab.Controllers
                     }
                 }
 
+                if (submission.WrittenQuestions.Any())
+                {
+                    toReturn.WrittenAnswers = new();
+                    foreach (var wQ in submission.WrittenQuestions)
+                    {
+                        lock (_writtenQuestions)
+                        {
+                            var questionInfo = _writtenQuestions.GetValueOrDefault(wQ.Hash);
+                            if (questionInfo == null)
+                            {
+                                questionInfo = new();
+                                Console.WriteLine($"Adding new written question with hash: {wQ.Hash}");
+                                _writtenQuestions.Add(wQ.Hash, questionInfo);
+                            }
+
+                            var toReturnList = new List<WrittenAnswerPreview>();
+
+                            lock (questionInfo)
+                            {
+                                if (questionInfo.ContainsKey(submission.User.Id))
+                                {
+                                    questionInfo[submission.User.Id] = (submission.User, wQ.UserAnswer);
+                                }
+                                else
+                                {
+                                    questionInfo.Add(submission.User.Id, (submission.User, wQ.UserAnswer));
+                                }
+
+                                foreach (var kvp in questionInfo)
+                                {
+                                    toReturnList.Add(
+                                        new WrittenAnswerPreview()
+                                        {
+                                            User = new User() { Name = Nickname.GetName(kvp.Value.User), Id = kvp.Value.User.Id },
+                                            Length = kvp.Value.Answer.Length
+                                        }
+                                    );
+                                }
+                            }
+
+                            toReturnList.Sort((a, b) =>
+                            {
+                                var comp1 = -a.Length.CompareTo(b.Length);
+                                if (comp1 == 0)
+                                {
+                                    return a.User.Id.CompareTo(b.User.Id);
+                                }
+                                else
+                                {
+                                    return comp1;
+                                }
+                            });
+
+                            toReturn.WrittenAnswers.TryAdd(wQ.Hash, toReturnList);
+                        }
+                    }
+                }
+
                 return Content(JsonConvert.SerializeObject(toReturn));
             }
             catch (Exception ex)
             {
                 return BadRequest(ex.ToString());
             }
+        }
+
+        public static string GetWrittenAnswer(string questionId, string userID)
+        {
+            return _writtenQuestions[questionId][userID].Answer;
         }
     }
 }

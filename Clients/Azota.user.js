@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azota Collab
 // @namespace    https://trungnt2910.github.io/
-// @version      0.0.1
+// @version      0.0.2
 // @description  HanoiCollab Client for Azota
 // @author       trungnt2910
 // @license      MIT
@@ -105,25 +105,73 @@
 
     unsafeWindow.HanoiCollabExposedVariables = [];
 
-    GM_xmlhttpRequest({
-        method: "GET",
-        url: "https://cdn.jsdelivr.net/gh/azota889/frontend/angular/14-es2015.b9eebba3b83b49db3192.js",
-        onload: function(response) {
-            var oldText = response.responseText;
-            var regex = /constructor\(.*?\){/gm;
-            var newText = oldText.replace(regex, (match) => match + "HanoiCollabExposedVariables.push(this);");
-            var newScript = document.createElement('script');
-            newScript.type = "text/javascript";
-            newScript.textContent = newText;
-            var head = document.getElementsByTagName('head')[0];
-            head.appendChild(newScript);
+    async function ExposeWebpack(webpacks)
+    {
+        for (var packInfo of webpacks)
+        {
+            await new Promise((resolve, reject) => 
+            {
+                GM_xmlhttpRequest({
+                    url: packInfo.source,
+                    method: "GET",
+                    onload: function(response) {
+                        
+                        var webpackJsonp = window.webpackJsonp;
+                        if (webpackJsonp)
+                        {
+                            for (var existingWebpack of webpackJsonp)
+                            {
+                                if (existingWebpack[0] == packInfo.index)
+                                {
+                                    webpackJsonp.splice(webpackJsonp.indexOf(existingWebpack), 1);
+                                }
+                            }
+                        }
+
+                        var oldText = response.responseText;
+                        var regex = /constructor\(.*?\){/gm;
+                        var newText = oldText.replace(regex, (match) => match + "HanoiCollabExposedVariables.push(this);");
+                        var newScript = document.createElement('script');
+                        newScript.type = "text/javascript";
+                        newScript.textContent = newText;
+                        var docPart = document.getElementsByTagName(packInfo.location)[0];
+                        docPart.appendChild(newScript);
+                        resolve();
+                    }
+                });
+            });
         }
-    });
+    }
+
+    await ExposeWebpack([
+        // This is an attempt to expose the main webpack bundle.
+        // It is currently NOT working due to Tampermonkey's limitation.
+        // Tampermonkey is not able to inject scripts before webpacks are executed.
+        // // Required for main
+        // {source: "https://cdn.jsdelivr.net/gh/azota889/frontend/angular/polyfills-es2015.423b5630ebb6ac480740.js", location: "body", index: 16},
+        // {source: "https://cdn.jsdelivr.net/gh/azota889/frontend/angular/main-es2015.08cb11322a5af0794ac9.js", location: "body", index: 15},
+        // Somehow, this one works as the devs put the script into <head> instead of <body>
+        {source: "https://cdn.jsdelivr.net/gh/azota889/frontend/angular/14-es2015.b9eebba3b83b49db3192.js", location: "head", index: 14}
+    ]);
 
     async function Setup() {
         if (location.pathname.search("take-test") != -1)
         {
             console.log("Detected test. Monitoring user.");
+
+            // Wait for elements to load
+            await new Promise((resolve, reject) => 
+            {
+                var id = setInterval(function()
+                {
+                    if (document.getElementsByClassName("question-content").length != 0)
+                    {
+                        clearInterval(id);
+                        resolve();
+                    }
+                }, 200);
+            });
+
             var testInfo = await new Promise((resolve, reject) => 
             {
                 var id = setInterval(function()
@@ -140,18 +188,11 @@
             });
             console.log(testInfo);
 
-            // Wait for elements to load
-            await new Promise((resolve, reject) => 
+            // Sometimes, the answerList isn't created (when entering a new test, for example.)
+            if (!testInfo.answerList)
             {
-                var id = setInterval(function()
-                {
-                    if (document.getElementsByClassName("question-content").length != 0)
-                    {
-                        clearInterval(id);
-                        resolve();
-                    }
-                }, 200);
-            });
+                testInfo.answerList = [];
+            }
 
             // Creating the "clear" button
             for (var qb of document.getElementsByClassName("question-content"))
@@ -200,10 +241,13 @@
                 qb.getElementsByClassName("answer-content")[0].appendChild(btn);
             }
 
-            return setInterval(async () => 
+            let updateWritten = true;
+
+            return setInterval(async function() 
             {
                 // This should run periodically
                 var questions = [];
+                var writtenQuestions = [];
 
                 for (var q of testInfo.questionList)
                 {
@@ -229,17 +273,35 @@
                             }
                         );
                     }
+                    else if (updateWritten)
+                    {
+                        var answerIndex = testInfo.answerList.findIndex(function(elem) { return elem.questionId == q.id; } );
+                        var answer = "";
+                        if (answerIndex != -1)
+                        {
+                            answer = testInfo.answerList[answerIndex].answerContent ? testInfo.answerList[answerIndex].answerContent[0].content : ""; 
+                        }
+                        writtenQuestions.push(
+                            {
+                                text: "",
+                                hash: q.id,
+                                // To-Do: Support more paragraphs in a written answer?
+                                userAnswer: answer
+                            }
+                        );
+                    }
                 }
 
                 var payload =
                 {
                     user:
                     {
-                        name: testInfo.userObj.fullName,
-                        id: testInfo.userObj.id,
+                        name: userName,
+                        id: userId,
                     },
                     examHash: testInfo.exam_obj.id,
-                    questions: questions
+                    questions: questions,
+                    writtenQuestions: writtenQuestions
                 };
 
                 // Re-post our nickname in case the server messed up.
@@ -288,20 +350,107 @@
                         var index = Number.parseInt(qb.id.substring(qb.id.lastIndexOf("_") + 1));
                         var currentQuestion = testInfo.questionList[index];
                         var stats = response.answers[currentQuestion.id];
-                        for (var ansConf of currentQuestion.answerConfig)
+                        if (currentQuestion.answerType == 1)
                         {
-                            var letter = ansConf.alpha;
-                            div.appendChild(document.createTextNode(letter + " " + stats[ansConf.key].length + ": "));
-                            for (var user of stats[ansConf.key].data)
+                            for (var ansConf of currentQuestion.answerConfig)
                             {
-                                div.appendChild(document.createTextNode(user.name + ", "));
+                                var letter = ansConf.alpha;
+                                div.appendChild(document.createTextNode(letter + " " + stats[ansConf.key].length + ": "));
+                                for (var user of stats[ansConf.key].data)
+                                {
+                                    div.appendChild(document.createTextNode(user.name + ", "));
+                                }
+                                div.appendChild(document.createElement("br"));
                             }
-                            div.appendChild(document.createElement("br"));
+                        }
+                        else
+                        {
+                            if (response.writtenAnswers)
+                            {
+                                let oldValue = null;
+                                if (oldChild)
+                                {
+                                    var elem = oldChild.getElementsByClassName("carano-user-answer-select")[0];
+                                    if (elem)
+                                    {
+                                        oldValue = JSON.parse(elem.value);
+                                    }
+                                }
+
+                                var select = document.createElement("select");
+                                select.classList.add("carano-user-answer-select");
+    
+                                for (var info of response.writtenAnswers[currentQuestion.id])
+                                {
+                                    var currentValue = JSON.stringify(info);
+                                    select.add(new Option(info.user.name + ", " + info.length + " characters", currentValue));
+                                    if (oldValue && oldValue.user.id == info.user.id)
+                                    {
+                                        select.value = currentValue;
+                                    }
+                                }
+    
+                                async function SetSelectValue()
+                                {
+                                    var info = JSON.parse(this.value);
+
+                                    var text = await new Promise((resolve, reject) => GM_xmlhttpRequest({
+                                        method: "GET",
+                                        url: server + "api/WrittenAnswer?questionId=" + currentQuestion.id + "&userId=" + info.user.id,
+                                        onload: (r) => {
+                                            resolve(r.responseText);
+                                        },
+                                        onerror: (r) => {
+                                            resolve(r.statusText);
+                                        }
+                                    }));
+
+                                    var textElement = document.createElement("div");
+                                    if (text)
+                                    {
+                                        for (var line of text.split("\n"))
+                                        {
+                                            textElement.append(document.createTextNode(line));
+                                            textElement.append(document.createElement("br"));
+                                        }
+                                    }
+                                    textElement.classList.add("carano-user-answer-text");
+                                    
+                                    // Remove right after append, to avoid glitches.
+                                    var oldText = div.getElementsByClassName("carano-user-answer-text")[0];
+                                    if (oldText)
+                                    {
+                                        div.removeChild(oldText);
+                                    }
+
+                                    div.appendChild(textElement);
+                                }
+
+                                select.addEventListener("change", SetSelectValue);
+
+                                div.appendChild(select);
+
+                                SetSelectValue.call(select);
+                            }
+                            else if (oldChild)
+                            {
+                                var oldSelect = oldChild.getElementsByClassName("carano-user-answer-select")[0];
+                                var oldText = oldChild.getElementsByClassName("carano-user-answer-text")[0];
+                                if (oldSelect)
+                                {
+                                    div.appendChild(oldSelect);
+                                }
+                                if (oldText)
+                                {
+                                    div.appendChild(oldText);
+                                }
+                            }
                         }
                         qb.appendChild(div);
                     }
                 }
 
+                updateWritten = !updateWritten;
             }, 5000);
         }
     }

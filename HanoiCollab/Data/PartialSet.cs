@@ -7,7 +7,7 @@ namespace HanoiCollab.Data
         [JsonProperty("length")]
         public int Count { get; set; }
         [JsonProperty("data")]
-        public T[]? Data { get; set; }
+        public T[] Data { get; set; }
 
         public PartialSet()
         {

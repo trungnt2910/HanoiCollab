@@ -5,11 +5,11 @@ namespace HanoiCollab.Data
     public class User
     {
         [JsonProperty("id")]
-        public string? Id { get; set; }
+        public string Id { get; set; }
         [JsonProperty("name")]
-        public string? Name { get; set; }
+        public string Name { get; set; }
         
-        public override bool Equals(object? obj)
+        public override bool Equals(object obj)
         {
             var other = obj as User;
             if (other == null)
