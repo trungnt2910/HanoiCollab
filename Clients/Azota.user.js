@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azota Collab
 // @namespace    https://trungnt2910.github.io/
-// @version      0.0.3
+// @version      0.0.4
 // @description  HanoiCollab Client for Azota
 // @author       trungnt2910
 // @license      MIT
@@ -426,14 +426,15 @@
                                     }
                                     textElement.classList.add("carano-user-answer-text");
                                     
-                                    // Remove right after append, to avoid glitches.
-                                    var oldText = div.getElementsByClassName("carano-user-answer-text")[0];
+                                    var parent = this.parentElement;
+                                    // Remove right before append, to avoid glitches.
+                                    var oldText = parent.getElementsByClassName("carano-user-answer-text")[0];
                                     if (oldText)
                                     {
-                                        div.removeChild(oldText);
+                                        parent.removeChild(oldText);
                                     }
-
-                                    div.appendChild(textElement);
+    
+                                    parent.appendChild(textElement);
                                 }
 
                                 select.addEventListener("change", SetSelectValue);
