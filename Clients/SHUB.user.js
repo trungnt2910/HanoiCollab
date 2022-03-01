@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SHUB Collab
 // @namespace    https://trungnt2910.github.io/
-// @version      0.0.1
+// @version      0.0.2
 // @description  HanoiCollab Client for SHUB
 // @author       trungnt2910
 // @license      MIT
@@ -47,27 +47,36 @@
     }, false);
 
     // Identity
-    var userName = localStorage.getItem("name");
-    var userId = localStorage.getItem("id");
+    var userName = "";
+    var userId = "";
+    var nickname = "";
 
-    var nickname = localStorage.getItem("HanoiCollabNickname");
-    if (!nickname)
+    function SetupIdentity()
     {
-        nickname = prompt("Enter your HanoiCollab nickname", userName);
-        localStorage.setItem("HanoiCollabNickname", nickname);
+        userName = localStorage.getItem("name");
+        userId = localStorage.getItem("id");
+    
+        nickname = localStorage.getItem("HanoiCollabNickname");
+        if (!nickname)
+        {
+            nickname = prompt("Enter your HanoiCollab nickname", userName);
+            localStorage.setItem("HanoiCollabNickname", nickname);
+        }
+    
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: server + "api/Nickname?userName=" + encodeURIComponent(userName) + "&userId=" + encodeURIComponent(userId),
+            data: nickname,
+            onload: function (r) {
+                console.log("Set nickname to: " + r.responseText);
+            },
+            onerror: function (r) {
+                console.log("Failed to set nickname: " + r.statusText);
+            }
+        });    
     }
 
-    GM_xmlhttpRequest({
-        method: "POST",
-        url: server + "api/Nickname?userName=" + encodeURIComponent(userName) + "&userId=" + encodeURIComponent(userId),
-        data: nickname,
-        onload: function (r) {
-            console.log("Set nickname to: " + r.responseText);
-        },
-        onerror: function (r) {
-            console.log("Failed to set nickname: " + r.statusText);
-        }
-    });
+    SetupIdentity();
 
     document.addEventListener('keyup', function (e)
     {
@@ -95,6 +104,8 @@
     unsafeWindow.HanoiCollabExposedVariables = [];
 
     async function Setup() {
+        SetupIdentity();
+
         var matches = location.href.match(/https:\/\/shub\.edu\.vn\/class\/.+?\/homework\/(.+?)\/test/);
         if (matches[1])
         {
