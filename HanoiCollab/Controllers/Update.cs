@@ -177,7 +177,7 @@ namespace HanoiCollab.Controllers
                                         new WrittenAnswerPreview()
                                         {
                                             User = new User() { Name = Nickname.GetName(kvp.Value.User), Id = kvp.Value.User.Id },
-                                            Length = kvp.Value.Answer.Length
+                                            Length = kvp.Value.Answer?.Length ?? 0
                                         }
                                     );
                                 }
