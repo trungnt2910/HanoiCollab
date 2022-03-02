@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Office Forms Collab
 // @namespace    https://trungnt2910.github.io/
-// @version      0.0.1
+// @version      0.0.2
 // @description  HanoiCollab Client for SHUB
 // @author       trungnt2910
 // @license      MIT
@@ -17,60 +17,76 @@
 (async function() {
     'use strict';
 
-    unsafeWindow.HanoiCollabExposedVariables = [];
- 
-    new MutationObserver(function (mutations) 
+    // We mostly won't be able to control script loading on this document,
+    // so we're gonna create a NEW document on an iframe.
+    // The script will be patched before getting into this frame.
+    var document = unsafeWindow.document;
+    var style = document.createElement("style");
+    style.innerText = `body {
+       margin: 0;
+       overflow: hidden;
+    }
+    #iframe1 {
+        position:absolute;
+        left: 0px;
+        width: 100%;
+        top: 0px;
+        height: 100%;
+    }`;
+    document.body.textContent = "";
+    document.body.appendChild(style);
+    var frame = document.createElement("iframe");
+    frame.id = "iframe1";
+    document.body.appendChild(frame);
+    var request = new XMLHttpRequest();
+    request.open("GET", location.href, false);
+    request.send(null);
+    var parser = new DOMParser();
+    var htmlDoc = parser.parseFromString(request.responseText, 'text/html');
+
+    for (var script of htmlDoc.documentElement.getElementsByTagName("script"))
     {
-        for (var mutation of mutations) 
+        if (script.src.includes("page.min"))
         {
-            if (mutation.type === 'childList') 
-            {
-                for (var node of mutation.addedNodes) 
+            var scriptSource = script.src;
+            script.removeAttribute("src");
+            var request = new XMLHttpRequest();
+            request.open("GET", scriptSource, false);
+            request.send(null);
+            var scriptContent = request.responseText;
+
+            const patches = [
                 {
-                    if (node.tagName === 'SCRIPT' && node.src && node.src && node.src.includes('light-response-page.min')) 
-                    {
-                        const patches = [
-                            {
-                                // Form state
-                                oldCode: "return(e=e||c.length!==Object.keys(n).length)?i:n",
-                                newCode: "return(e=e||c.length!==Object.keys(n).length)?(HanoiCollabExposedVariables.formState=i,i):n"
-                            },
-                            {
-                                // Flush local storage
-                                oldCode: "function f(n){var r=(0,o.cF)",
-                                newCode: "function f(n){HanoiCollabExposedVariables.updateLocalStorage=f;var r=(0,o.cF)"
-                            }
-                        ];
-
-                        var request = new XMLHttpRequest();
-                        // Synchronous is our friend.
-                        request.open("GET", node.src, false);
-                        request.send(null);
-                        var script = request.responseText;
-                        for (var {oldCode, newCode} of patches)
-                        {
-                            script = script.replace(oldCode, newCode);
-                        }
-                        node.removeAttribute("src");
-                        node.textContent = script;
-                    }
+                    // Form state
+                    oldCode: "return(e=e||c.length!==Object.keys(n).length)?i:n",
+                    newCode: "return(e=e||c.length!==Object.keys(n).length)?(function(i){window.HanoiCollabExposedVariables=window.HanoiCollabExposedVariables||[];window.HanoiCollabExposedVariables.formState=i;return i})(i):n"
+                },
+                {
+                    // Flush local storage
+                    oldCode: "function f(n){var r=(0,o.cF)",
+                    newCode: "function f(n){window.HanoiCollabExposedVariables=window.HanoiCollabExposedVariables||[];window.HanoiCollabExposedVariables.updateLocalStorage=f;var r=(0,o.cF)"
                 }
-            }
-        }
-    }).observe(document, { childList: true, subtree: true });
+            ];
 
-    // Unlucky users with good internet WILL experience
-    // multiple reloads.
-    if (document.body)
-    {
-        for (var script of document.body.getElementsByTagName('script'))
-        {
-            if (script.src && script.src.includes("light-response-page.min"))
+            for (var {oldCode, newCode} of patches)
             {
-                location.reload();
+                scriptContent = scriptContent.replace(oldCode, newCode);
             }
+
+            script.textContent = scriptContent;
         }
     }
+    var blob = new Blob([htmlDoc.documentElement.outerHTML], {type: "text/html"});
+    
+    document = await new Promise(function (resolve, reject) 
+    {
+        frame.onload = function()
+        {
+            resolve(frame.contentDocument);
+        }
+        frame.src = URL.createObjectURL(blob);
+    });
+    window = frame.contentWindow;
 
     String.prototype.getHashCode = function() {
         var hash = 0, i, chr;
@@ -161,12 +177,10 @@
         }
     }, false);
 
-    unsafeWindow.HanoiCollabExposedVariables = [];
-
-    async function Setup() 
+    async function Setup()
     {
         // This time, we're waiting for... "office-form-question-content"
-        var questionContents = await new Promise(function (resolve, reject) 
+        var questionContents = await new Promise(function (resolve, reject)
         {
             var handle = setInterval(function()
             {
@@ -179,11 +193,11 @@
             }, 200);
         });
 
-        await new Promise(function (resolve, reject) 
+        await new Promise(function (resolve, reject)
         {
             var handle = setInterval(function()
             {
-                if (HanoiCollabExposedVariables.formState)
+                if (window.HanoiCollabExposedVariables.formState)
                 {
                     clearInterval(handle);
                     resolve();
@@ -191,9 +205,9 @@
             }, 200);
         });
 
-        if (HanoiCollabExposedVariables.formState.$bE)
+        if (window.HanoiCollabExposedVariables.formState.$bE)
         {
-            var userInfo = HanoiCollabExposedVariables.formState.$bE;
+            var userInfo = window.HanoiCollabExposedVariables.formState.$bE;
             if (userInfo.userId && userInfo.displayName)
             {
                 userId = userInfo.userId;
@@ -226,7 +240,7 @@
             return temp.length > 0;
         }
 
-        var oldQuestionState = HanoiCollabExposedVariables.formState.$$.$e;
+        var oldQuestionState = window.HanoiCollabExposedVariables.formState.$$.$e;
         var firstQuestion = questionContents[0];
         // Triggering local storage.
         if (IsMultipleChoice(firstQuestion))
@@ -259,7 +273,7 @@
         {
             var titleBox = questionContent.getElementsByClassName("question-title-box")[0];
             var id = titleBox.id.substring("QuestionId_".length);
-            return id;            
+            return id;
         }
 
         function ClearAnswer(questionContent)
@@ -273,7 +287,7 @@
                 }
                 // Array of selected answers.
                 // DON'T ASK ME WHAT THE SYMBOLS MEAN!
-                HanoiCollabExposedVariables.formState.$$.$e[id].runtime.$c = [];
+                window.HanoiCollabExposedVariables.formState.$$.$e[id].runtime.$c = [];
             }
             else
             {
@@ -281,15 +295,15 @@
                 input.value = "";
                 // String, containing the answer.
                 // AGAIN, DON'T ASK ME WHAT THE SYMBOLS MEAN!
-                HanoiCollabExposedVariables.formState.$$.$e[id].runtime.$c = "";
+                window.HanoiCollabExposedVariables.formState.$$.$e[id].runtime.$c = "";
             }
             // We have triggered local storage before, this should be available.
-            HanoiCollabExposedVariables.updateLocalStorage(HanoiCollabExposedVariables.formState.$$);
+            window.HanoiCollabExposedVariables.updateLocalStorage(window.HanoiCollabExposedVariables.formState.$$);
         }
 
         // Restore old form state. We've already restored the UI state.
-        HanoiCollabExposedVariables.formState.$$.$e = oldQuestionState;
-        HanoiCollabExposedVariables.updateLocalStorage(HanoiCollabExposedVariables.formState.$$);
+        window.HanoiCollabExposedVariables.formState.$$.$e = oldQuestionState;
+        window.HanoiCollabExposedVariables.updateLocalStorage(window.HanoiCollabExposedVariables.formState.$$);
 
         // Set up our nice little "Clear" button.
         for (var questionContent of questionContents)
@@ -312,9 +326,9 @@
             var questions = [];
             var writtenQuestions = [];
 
-            for (var id in HanoiCollabExposedVariables.formState.$$.$e)
+            for (var id in window.HanoiCollabExposedVariables.formState.$$.$e)
             {
-                var q = HanoiCollabExposedVariables.formState.$$.$e[id];
+                var q = window.HanoiCollabExposedVariables.formState.$$.$e[id];
                 var choices = [];
                 var userAnswer = null;
 
@@ -357,7 +371,7 @@
                     name: userName,
                     id: userId,
                 },
-                examHash: HanoiCollabExposedVariables.formState.$$.$H.getHashCode(),
+                examHash: window.HanoiCollabExposedVariables.formState.$$.$H.getHashCode(),
                 questions: questions,
                 writtenQuestions: writtenQuestions
             };
@@ -373,7 +387,7 @@
                     console.log("Failed to set nickname: " + r.statusText);
                 }
             });
-            
+
             var response = await new Promise((resolve, reject) => GM_xmlhttpRequest({
                 method: "POST",
                 url: server + "api/Update",
@@ -409,7 +423,7 @@
                     var stats = response.answers[id];
                     if (IsMultipleChoice(questionContent))
                     {
-                        var q = HanoiCollabExposedVariables.formState.$$.$e[id];
+                        var q = window.HanoiCollabExposedVariables.formState.$$.$e[id];
                         var letterCode = 'A'.charCodeAt(0);
                         for (var a of q.info.choices)
                         {
@@ -475,7 +489,7 @@
                                     }
                                 }
                                 textElement.classList.add("carano-user-answer-text");
-                                
+
                                 var parent = this.parentElement;
                                 // Remove right before append, to avoid glitches.
                                 var oldText = parent.getElementsByClassName("carano-user-answer-text")[0];
@@ -528,7 +542,7 @@
 
     var currentInterval = await Setup();
 
-    async function OnUrlChange() 
+    async function OnUrlChange()
     {
         if (currentInterval)
         {
