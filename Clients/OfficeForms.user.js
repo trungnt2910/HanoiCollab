@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Office Forms Collab
 // @namespace    https://trungnt2910.github.io/
-// @version      0.0.2
+// @version      0.0.3
 // @description  HanoiCollab Client for SHUB
 // @author       trungnt2910
 // @license      MIT
@@ -20,7 +20,18 @@
     // We mostly won't be able to control script loading on this document,
     // so we're gonna create a NEW document on an iframe.
     // The script will be patched before getting into this frame.
-    var document = unsafeWindow.document;
+    var document = await new Promise(function (resolve, reject)
+    {
+        var handle = setInterval(function ()
+        {
+            if (unsafeWindow.document && unsafeWindow.document.body)
+            {
+                clearInterval(handle);
+                resolve(unsafeWindow.document);
+            }
+        }, 100);
+    });
+
     var style = document.createElement("style");
     style.innerText = `body {
        margin: 0;
